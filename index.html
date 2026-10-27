@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#121612">
+  <meta name="description" content="伸出手，让一朵粒子花在指尖绽放。一个由 Three.js 与 MediaPipe 驱动的实时交互花园。">
+  <title>FLORA · 掌心花园</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-flower" viewBox="0 0 32 32"><path d="M16 14C4-1 2 17 13 17C-1 27 17 32 17 20C27 34 34 15 21 15C35 6 16-2 16 14Z"/><circle cx="17" cy="16" r="2"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="3"/><path d="m16 10 5-3v10l-5-3"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 48 48"><path d="M15 26V13a3 3 0 0 1 6 0v10-15a3 3 0 0 1 6 0v15-12a3 3 0 0 1 6 0v14-8a3 3 0 0 1 6 0v15c0 9-5 13-13 13-5 0-8-2-11-6L7 28a3 3 0 0 1 5-4l6 6"/></symbol>
+    <symbol id="i-fist" viewBox="0 0 48 48"><path d="M12 27V16c0-5 7-5 7 0v7-12c0-5 7-5 7 0v12-10c0-5 7-5 7 0v11-7c0-5 7-5 7 0v14c0 9-6 13-14 13-7 0-12-4-15-10l-3-7c-2-5 4-7 7-3l6 7h9"/></symbol>
+    <symbol id="i-move" viewBox="0 0 48 48"><path d="M22 39V15a3 3 0 0 1 6 0v12l4-2 6 2v10c0 4-3 7-8 7h-5l-10-12c-3-4 2-7 5-3l2 2M7 9h31M11 5 7 9l4 4m23-8 4 4-4 4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-11v1"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+  </svg>
+
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="FLORA 掌心花园首页"><svg><use href="#i-flower"/></svg><span>flora<span class="brand-dot">.</span></span><i></i><span class="brand-caption">掌心花园</span></a>
+    <span class="header-caption">A SMALL GESTURE. A LITTLE WONDER.</span>
+    <button id="help-button" class="quiet-button"><svg><use href="#i-info"/></svg>体验指南</button>
+  </header>
+
+  <main>
+    <section class="garden" aria-label="手势粒子花园">
+      <div id="scene" class="scene" aria-label="可交互的三维粒子花朵"></div>
+      <div class="scene-grain" aria-hidden="true"></div>
+      <div class="intro">
+        <div class="eyebrow"><span></span> INTERACTIVE BOTANICAL LAB <small>001</small></div>
+        <h1>手心之间，<br>万物<span class="title-accent">生长。</span></h1>
+        <p>把一点温柔，交给指尖。<br>张开手，让一朵花为你盛放。</p>
+        <div class="intro-note"><span class="little-line"></span> 用手势，唤醒你的数字花园</div>
+      </div>
+
+      <div class="scene-top-right"><span class="status-dot"></span><span id="mode-label">自由演示</span><span class="tag-divider"></span><span id="fps">— FPS</span></div>
+      <div class="flower-caption" aria-hidden="true"><span class="caption-line"></span><span>01 / DIGITAL BLOOM<br><em>花开有时，此刻刚好。</em></span></div>
+      <div class="scene-bottom-left"><span class="crosshair">+</span><span>GROWN FROM PARTICLES<br><b id="particle-count">96,000 POINTS OF POSSIBILITY</b></span></div>
+      <button id="fullscreen-button" class="icon-button fullscreen" aria-label="进入全屏" title="全屏"><svg><use href="#i-expand"/></svg></button>
+
+      <aside class="camera-card" aria-label="手势控制">
+        <div class="camera-card-heading"><span><span class="status-dot" id="camera-dot"></span>手势感应</span><span id="camera-badge">未连接</span></div>
+        <div class="camera-preview" id="camera-preview">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="landmarks" width="640" height="480" aria-label="手部关键点预览"></canvas>
+          <div class="camera-placeholder" id="camera-placeholder"><div class="hand-orbit"><svg><use href="#i-hand"/></svg><span></span><i></i></div><span id="preview-hint">你的手，就是魔法</span></div>
+          <span class="view-corner tl"></span><span class="view-corner tr"></span><span class="view-corner bl"></span><span class="view-corner br"></span>
+          <span class="preview-live" id="preview-live" hidden><i></i> LIVE</span>
+        </div>
+        <p id="camera-message" role="status" aria-live="polite">开启摄像头，让花朵回应你的手势。</p>
+        <button id="camera-button" class="primary-button"><svg><use href="#i-camera"/></svg><span>开启摄像头</span><svg class="button-arrow"><use href="#i-arrow"/></svg></button>
+        <p class="privacy-note"><span class="lock-symbol">▤</span> 画面仅在本地处理，不会上传</p>
+      </aside>
+
+      <div class="loading-note" id="loading-note" role="status">正在种下一朵花…</div>
+      <div class="renderer-error" id="renderer-error" hidden><h2>花园需要 WebGL 2 支持</h2><p>请使用较新的浏览器，并开启硬件加速后刷新。</p></div>
+    </section>
+
+    <section class="studio-bar" aria-label="花朵设置">
+      <div class="palette-control"><span class="control-label">花间色彩</span><div class="swatches" role="group" aria-label="花朵颜色"><button class="swatch active" data-palette="rose" aria-label="晨露粉" aria-pressed="true" style="--swatch:#e8a9b5"></button><button class="swatch" data-palette="ivory" aria-label="月光白" aria-pressed="false" style="--swatch:#e9e3c9"></button><button class="swatch" data-palette="lilac" aria-label="暮山紫" aria-pressed="false" style="--swatch:#b2a0db"></button><button class="swatch" data-palette="blue" aria-label="雾霭蓝" aria-pressed="false" style="--swatch:#9cbfc9"></button></div><span id="palette-name" class="palette-name">晨露粉</span></div>
+      <div class="bloom-control"><div class="bloom-label"><label for="bloom-range" class="control-label">绽放程度</label><output id="bloom-value" for="bloom-range">85<span>%</span></output></div><span class="range-end">花苞</span><input id="bloom-range" type="range" min="0" max="100" value="85" aria-label="绽放程度"><span class="range-end">盛放</span></div>
+      <div class="studio-actions"><button id="auto-button" class="auto-button active" aria-pressed="true"><span></span>自动呼吸</button><button id="reset-button" class="icon-button" aria-label="重置花园" title="重置花园"><svg><use href="#i-reset"/></svg></button></div>
+    </section>
+
+    <section class="gesture-guide" aria-label="交互方式">
+      <div class="guide-title"><span class="eyebrow">LET NATURE FOLLOW YOU</span><h2>不必触碰，自然回应。</h2></div>
+      <div class="gesture-step"><div class="gesture-icon"><svg><use href="#i-fist"/></svg></div><div><h3>轻轻握拳 <span>01</span></h3><p>花瓣收拢，回到含苞时刻</p></div></div>
+      <div class="gesture-step"><div class="gesture-icon"><svg><use href="#i-hand"/></svg></div><div><h3>缓缓张开 <span>02</span></h3><p>随掌心舒展，绽放一场花事</p></div></div>
+      <div class="gesture-step"><div class="gesture-icon"><svg><use href="#i-move"/></svg></div><div><h3>移动指尖 <span>03</span></h3><p>花朵轻随，粒子泛起微澜</p></div></div>
+    </section>
+  </main>
+
+  <footer><span>MADE OF LIGHT, MOVED BY YOU.</span><span>Three.js <i>×</i> MediaPipe <i>·</i> 一座只属于此刻的花园</span><span class="footer-right"><i></i> 给日常一点生长的空间</span></footer>
+
+  <dialog id="help-dialog"><button id="close-help" class="icon-button close-help" aria-label="关闭指南"><svg><use href="#i-close"/></svg></button><span class="eyebrow">YOUR FIRST BLOOM</span><h2>让手势，成为花的语言。</h2><p>点击「开启摄像头」并允许访问，将一只手完整放入画面。保持光线充足，掌心朝向镜头。</p><ol><li><b>握拳与张开</b>：花朵在花苞和盛放之间平滑变化。</li><li><b>移动食指</b>：花朵轻轻跟随指尖，附近粒子产生微澜。</li><li><b>无需摄像头</b>：移动鼠标或触摸花园产生互动；拖动「绽放程度」或按空格键切换花开与花合。</li></ol><p class="dialog-note">摄像头关闭时，可以开启「自动呼吸」欣赏花开。所有模型与画面均在你的设备上运行。</p><button id="got-it" class="primary-button">去种下一点美好 <svg><use href="#i-arrow"/></svg></button></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
