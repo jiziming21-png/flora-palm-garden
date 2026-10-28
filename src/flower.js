@@ -2,7 +2,7 @@ import * as THREE from '../vendor/three.module.js';
 import { flowerVertex, flowerFragment, petalVertex, petalFragment, dustVertex, dustFragment } from './shaders.js';
 
 export const PALETTES = {
-  rose: { name: '晨露粉', inner: '#aa3865', outer: '#ffc5d6' },
+  rose: { name: '晨露粉', inner: '#a44e76', outer: '#ffcfdb' },
   ivory: { name: '月光白', inner: '#aa985c', outer: '#fff2cf' },
   lilac: { name: '暮山紫', inner: '#69419a', outer: '#e6ccff' },
   blue: { name: '雾霭蓝', inner: '#386f91', outer: '#c8edf4' },
@@ -16,7 +16,7 @@ const WHORLS = [
   { petals: 6, length: 1.00, width: 0.48, height: 0.27, cup: 0.56, rotation: 0.13 },
 ];
 
-// Both the satin petal body and its point cloud sample this same surface.
+// The translucent petal veil and its point cloud sample this same surface.
 // Keeping the rest shape, bud and opening phase shared prevents a second,
 // disconnected flower from appearing during intermediate gesture states.
 function petalSample(layer, petal, u, v) {
@@ -50,15 +50,37 @@ function randomGenerator(seed = 1209) {
   };
 }
 
+function stemSample(t) {
+  return [-Math.sin(t * Math.PI) * 0.13 + t * 0.08, -0.22 - t * 3.05, Math.sin(t * 3.2) * 0.05];
+}
+
+const LEAVES = [
+  { at: 0.40, side: -1, length: 1.30, width: 0.30, lift: 0.64, turn: 0.18 },
+  { at: 0.69, side: 1, length: 1.46, width: 0.34, lift: 0.79, turn: 0.36 },
+  { at: 0.18, side: 1, length: 0.67, width: 0.17, lift: 0.31, turn: -0.70 },
+];
+
+function leafSample(leaf, t, v) {
+  const root = stemSample(leaf.at);
+  const envelope = Math.pow(Math.sin(t * Math.PI), 0.85);
+  const along = t * leaf.length;
+  const across = v * envelope * leaf.width;
+  return [
+    root[0] + leaf.side * along * Math.cos(leaf.turn) - across * Math.sin(leaf.turn),
+    root[1] + t * leaf.lift + envelope * 0.12 + Math.abs(v) * envelope * 0.08,
+    root[2] + along * Math.sin(leaf.turn) + across * Math.cos(leaf.turn),
+  ];
+}
+
 function createFlowerGeometry(count) {
   const random = randomGenerator();
   const positions = new Float32Array(count * 3);
   const buds = new Float32Array(count * 3);
   const meta = new Float32Array(count * 4);
   const detail = new Float32Array(count * 4);
-  const petalCount = Math.floor(count * 0.883);
-  const heartCount = Math.floor(count * 0.065);
-  const stemEnd = Math.floor(count * 0.9965);
+  const petalCount = Math.floor(count * 0.79);
+  const heartCount = Math.floor(count * 0.047);
+  const stemEnd = Math.floor(count * 0.994);
 
   for (let i = 0; i < count; i++) {
     const k = i * 3;
@@ -70,12 +92,16 @@ function createFlowerGeometry(count) {
       const layer = pick < 0.31 ? 0 : pick < 0.57 ? 1 : pick < 0.78 ? 2 : pick < 0.925 ? 3 : 4;
       const petal = Math.floor(random() * WHORLS[layer].petals);
       const u = Math.pow(random(), 0.84);
-      const v = (random() * 2 - 1);
+      const distribution = random();
+      // Fine dotted ribs and an interrupted rim, with air between the grains.
+      const v = distribution < 0.14 ? (random() < 0.5 ? -1 : 1) * (0.96 + random() * 0.04)
+        : distribution < 0.40 ? Math.max(-1, Math.min(1, (Math.floor(random() * 17) - 8) / 8 + (random() - 0.5) * 0.018))
+        : random() * 2 - 1;
       const sample = petalSample(layer, petal, u, v);
       positions.set(sample.bloom, k);
-      positions[k + 1] += 0.005 + random() * 0.01;
+      positions[k + 1] += 0.012 + Math.pow(random(), 5) * 0.065;
       buds.set(sample.bud, k);
-      meta[m] = 0.95 + random() * 1.55;
+      meta[m] = seed > 0.965 ? 2.7 : 0.75 + random() * 1.20;
       meta[m + 1] = sample.gradient;
       meta[m + 2] = seed;
       meta[m + 3] = 0;
@@ -101,32 +127,36 @@ function createFlowerGeometry(count) {
       meta[m + 2] = seed;
       meta[m + 3] = 1;
     } else if (i < stemEnd) {
-      // A short curved stem and two tapered leaves, also built from points.
+      // Every leaf grows from the same curved stem, with staggered attachments.
       const t = random();
-      const stem = random() < 0.52;
+      const stem = random() < 0.28;
       if (stem) {
         const angle = random() * Math.PI * 2;
-        positions[k] = Math.sin(t * 2.4) * 0.1 + Math.cos(angle) * 0.025;
-        positions[k + 1] = -0.22 - t * 1.91;
-        positions[k + 2] = Math.sin(angle) * 0.025;
+        const center = stemSample(t);
+        const radius = 0.026 * (1 - t * 0.56);
+        positions.set([center[0] + Math.cos(angle) * radius, center[1], center[2] + Math.sin(angle) * radius], k);
+        detail.set([t, 0, 0, 0], m);
       } else {
-        const side = random() < 0.5 ? -1 : 1;
-        const width = (random() - 0.5) * Math.sin(t * Math.PI) * 0.44;
-        positions[k] = side * (0.05 + t * 0.93);
-        positions[k + 1] = -1.10 + t * 0.5 + Math.sin(t * Math.PI) * 0.15;
-        positions[k + 2] = width + side * t * 0.17;
+        const pick = random();
+        const leaf = LEAVES[pick < 0.43 ? 0 : pick < 0.88 ? 1 : 2];
+        const distribution = random();
+        const v = distribution < 0.19 ? (random() - 0.5) * 0.025
+          : distribution < 0.34 ? (random() < 0.5 ? -1 : 1) * (0.96 + random() * 0.04)
+          : random() * 2 - 1;
+        positions.set(leafSample(leaf, t, v), k);
+        detail.set([t, v, 0, leaf.at], m);
       }
       buds.set(positions.subarray(k, k + 3), k);
-      meta[m] = 0.7 + random() * 0.8;
-      meta[m + 1] = t;
+      meta[m] = 0.75 + random() * 0.95;
+      meta[m + 1] = stem ? 0.24 + (1 - t) * 0.26 : 0.42 + Math.sin(t * Math.PI) * 0.36;
       meta[m + 2] = seed;
       meta[m + 3] = 2;
     } else {
       const angle = random() * Math.PI * 2;
-      const r = 2.40 + random() * 0.65;
+      const r = 1.55 + random() * 1.38;
       positions.set([Math.cos(angle) * r, 0.15 + random() * 1.1, Math.sin(angle) * r], k);
       buds.set(positions.subarray(k, k + 3), k);
-      meta.set([1.0 + random() * 2.5, random(), seed, 3], m);
+      meta.set([0.8 + random() * 1.8, random(), seed, 3], m);
     }
   }
   const geometry = new THREE.BufferGeometry();
@@ -201,8 +231,8 @@ export class FlowerGarden {
     container.append(this.renderer.domElement);
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(37, 1, 0.1, 100);
-    this.camera.position.set(0, 6.8, 8.8);
-    this.camera.lookAt(0, -0.1, 0);
+    this.camera.position.set(0, 5.2, 9.8);
+    this.camera.lookAt(0, -0.52, 0);
     this.group = new THREE.Group();
     this.scene.add(this.group);
     const pixelRatio = this.renderer.getPixelRatio();
@@ -222,7 +252,7 @@ export class FlowerGarden {
     this.flower.renderOrder = 2;
     this.petals = new THREE.Mesh(createPetalGeometry(), new THREE.ShaderMaterial({
       vertexShader: petalVertex, fragmentShader: petalFragment,
-      uniforms: this.uniforms, transparent: false, depthWrite: true,
+      uniforms: this.uniforms, transparent: true, depthWrite: false,
       side: THREE.DoubleSide, polygonOffset: true,
       polygonOffsetFactor: 1, polygonOffsetUnits: 1,
     }));
